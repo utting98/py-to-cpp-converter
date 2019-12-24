@@ -89,18 +89,18 @@ def print_check(line):
             #as with tsring check if single or double quote and enforce double quote if printing string
             if(line_split2[0][0]=="'" and line_split2[0][len(line_split2[1])-1]=="'"):
                 string_format = '"%s"' % line_split2[0][1:-1]
-                converted_line = "cout >> " + string_format + ' >> endl;' #make the converted print line
+                converted_line = "cout << " + string_format + ' << endl;' #make the converted print line
                 return converted_line #return the converted line
             else:
                 pass
         except:
             pass
-        converted_line = line.replace('print(','cout >> ')[:-1] #if made it this far then printing variables instead of string
+        converted_line = line.replace('print(','cout << ')[:-1] #if made it this far then printing variables instead of string
         if(',' in converted_line): #check for comma indicating multiple variables out
-            converted_line = converted_line.replace(',',' >> ') #convert output for multiple variables in single line
+            converted_line = converted_line.replace(',',' << ') #convert output for multiple variables in single line
         else:
             pass
-        converted_line = converted_line+' >> endl;' #complete converted line with end line statement
+        converted_line = converted_line+' << endl;' #complete converted line with end line statement
         return converted_line #return the converted line
     else: #if print not used return thaat line is not print function
         return False
