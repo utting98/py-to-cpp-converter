@@ -1,4 +1,8 @@
 # py-to-cpp-converter
+
+NOTE: Full code rework currently in progress to remove line by line string replacement, using AST tree instead then replacing node wise, see the folder files for how this approach is currently being worked once it is up to date with what the string replacement method could do it will be fully documented, the information below corresponds to the top level string replacement method.
+
+
 This project is a work in progress python script that will read in another python script and attempt to convert it to a C++ program via line by line conversion and file writeout. In the first instance it will be written only to handle base library python, possibly extending in the future.
 
 
