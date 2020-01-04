@@ -10,6 +10,7 @@ def read_file(path):
     file.close() #close the file as it is finished with
     print('Parsing Completed') #inform user file has been parsed successfuly
     return lines #return line data of file
+# @dullbananas was here
 
 #check if the line is a comment
 def comment_check(line):
