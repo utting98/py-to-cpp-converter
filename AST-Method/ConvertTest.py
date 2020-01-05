@@ -2,86 +2,73 @@
 #script, once this method is up to date with the old method it will be fully commented to explain approach, it has been included now for
 #any potential contributors to see what new approach is being taken to replace the old line by line string replacement method
 
-
+#script to read python code in to an AST, parse and replace nodes with corresponding c++ code
+#make relevant imports
 import ast
 import numpy as np
 
-list_types = []
-converted_lines = []
-
-def get_arg_type(arg):
-    global list_types
-    if isinstance(arg,ast.Num):
-        return arg.n
-    elif isinstance(arg,ast.List):
-        for i in arg.elts:
-            list_types.append(get_arg_type(i))
-        temp = list_types
-        list_types = []
-        return temp
-    elif isinstance(arg,ast.Str):
-        return 'string'
-
-class CallParser(ast.NodeVisitor):
-    def __init__(self):
-        self.functions = []
-        self.arg_types_list = []
-    
-    def visit_Call(self,node):
-        arg_types = []
-        for i in node.args:
-            a = get_arg_type(i)
-            if isinstance(a,str):
-                arg_types.append('string')
-            elif isinstance(a,float):
-                arg_types.append('float')
-            elif isinstance(a,int):
-                arg_types.append('int')
-            elif isinstance(a,list):
-                test = []
-                for i in a:
-                    test.append(type(i))
-                if test[1:] == test[:-1]:
-                    pass
-                else:
-                    raise TypeError('Lists in C++ require all element types to be the same, your list was found to have types: %s' % test)
-                arg_types.append('vector%s' % str(test[0]).replace("class ","").replace("'",""))
-        self.arg_types_list.append(arg_types)
-        self.functions.append(node.func.id)
-
+#parser class for function definitions
 class FunctionParser(ast.NodeVisitor):
-    def visit_FunctionDef(self, node):
-        global converted_lines, function_body, arg_vars
-        arg_vars = []
-        #@todo add types to args 
-        args_string = ''
-        for i in node.args.args:
-            arg_vars.append(i.arg)
-            args_string += i.arg + ', '
-        args_string = args_string[:-2]
+    def visit_FunctionDef(self, node): #visit the function definition node
+        #define relevant globals that require access
+        global converted_lines, function_body, arg_vars, list_types
+        arg_vars = [] #list of arguments
+        args_string = '' #argument string for conversion
+        for i in range(0,len(node.args.args)): #iterate over the node arguments
+            arg_val = node.args.args[i].arg #for each arg append the arg name
+            arg_type = list_types[0][i] #get the types of the first function's arguments
+            full_arg = arg_type + ' ' + arg_val #define a full argument string as the type and name
+            arg_vars.append(full_arg) #add the full arg definition to list
+            args_string += full_arg + ', ' #add the full arag definition to the arg string
+        args_string = args_string[:-2] #remove extra ', ' at the end of the line
+        list_types.pop(0) #remove the arg types for the arguments that have just been processed
         
-        function_body = []
-        for i in node.body:
-            if(type(i) == ast.Return):
-                line = ReturnParser().visit_Return(i)
-                command = []
-                command.append('return')
-                command.append(line)
-                function_body.append(command)
+        function_body = [] #define list for the main body of the function
+        for i in node.body: #iterte over the nodes in the body of the function
+            if(type(i) == ast.Return): #check if the line is a return function
+                line = ReturnParser().visit_Return(i) #visit the return parser function
+                if(line == None): #if return is a void return
+                    function_body.append('return') #add a void return to the body
+                else: #if return has arguments
+                    return_types = [] #make a list of the types of values being returned
+                    for j in range(0,len(line)):  #iterate over the return values listed
+                        for i in reversed(range(0,len(function_body))): #iterate backwards over the body of the function (find the latest definitions of the variables)
+                            declaration_check = ' %s = ' % line[j] #check for a definition of the variable
+                            if(declaration_check not in function_body[i]): #if there is not a definition of the variable on this line of the function body skip it
+                                pass
+                            else: #if a definition is found isolate they type by taking the first word and add it to the return types list
+                                return_types.append(function_body[i].split(' ')[0])
+                    #if there is only one return value a normal return can be used 
+                    if(len(return_types) == 1):
+                        #add the return and the value to the function body
+                        function_body.append('return %s;' % line)
+                    else: #if multiple values are required generate a structure to return
+                        struct_string = 'struct result {' #initialise structure string
+                        for i in range(0,len(line)): #iterate over the number of arguments
+                            #add (value_type dummy_return_[number];) to the structure string  
+                            struct_string += return_types[i] + ' dummy_return_%s; ' % str(i)
+                        #remove the extra space, close the struct bracket and end statement for struct definition
+                        struct_string = struct_string[:-1] + '};'
+                        function_body.append(struct_string) #add the struct definition to the function body
+                        return_string = 'return result {'
+                        for i in range(0,len(line)):
+                            return_string += line[i] + ', '
+                        return_string = return_string[:-2] + '};'
+                        function_body.append(return_string)
             else:
                 function_body.append(general_access_node(i))
         
         function_def = 'auto %s (%s) {' % (node.name, args_string)
         converted_lines.append(function_def)
         converted_lines.append(function_body)
+        converted_lines.append('}')
         arg_vars = []
         function_body = []
         return
-        #return 'function_def', node.name, arg_vars, function_body
 
 class AssignParser(ast.NodeVisitor):
-    global converted_lines
     def visit_Assign(self,node):
+        global converted_lines, arg_vars
         for name in node.targets:
             name_assign = general_access_node(name)
         if(type(node.value) == ast.BinOp):
@@ -100,9 +87,113 @@ class AssignParser(ast.NodeVisitor):
             val_assign = ['BinOp',val_assign]
         else:
             val_assign = general_access_node(node.value)
-        
+
         type_check = type(val_assign)
-        if(type_check == list and val_assign[0] == 'BinOp'):
+        if(type_check == tuple and val_assign[0] == 'subscript'):
+            args = val_assign[1]
+            list_name = args[1]
+            type_script = args[0]
+            if(type_script == 'index'):
+                subscript = list_name + '[%s]' % args[2]
+            elif(type_script == 'slice'):
+                subscript = list_name + '[%s:%s]' % (args[2],args[3])
+            else:
+                raise TypeError('Subscript type not yet handled: %s' % type_script)
+            
+            found = False
+            for i in reversed(range(0,len(converted_lines))):
+                find_def = '%s = ' %  list_name
+                if(find_def in converted_lines[i]):
+                    type_check = converted_lines[i].split(' ')[0]
+                    found = True
+                else:
+                    pass
+            function_var = ' %s' % list_name
+            if(arg_vars != [] and found == False):
+                for i in range(0,len(arg_vars)):
+                    if(function_var not in arg_vars[i]):
+                        pass
+                    else:
+                        type_check = arg_vars[i].split(' ')[0]
+                        found = True
+            else:
+                pass
+            if(function_body != [] and found == False):
+                for i in reversed(range(0,len(function_body))):
+                    declaration_check = '%s = ' % list_name
+                    if(declaration_check not in converted_lines[i]):
+                        pass
+                    else:
+                        type_check = converted_lines[i].split(' ')[0]
+                        found = True
+            
+            if(found == False):
+                type_check = 'auto'
+            else:
+                inner_level = type_check.split('std::vector<',1)[1]
+                mirrored = inner_level[::-1].replace('>','',1)
+                isolated_inner = mirrored[::-1]
+                type_check = isolated_inner
+            
+            val_assign = subscript
+        
+        elif(type(name_assign) == tuple):
+            args = name_assign[1]
+            list_name = args[1]
+            type_script = args[0]
+            if(type_script == 'index'):
+                subscript = list_name + '[%s]' % args[2]
+            elif(type_script == 'slice'):
+                subscript = list_name + '[%s:%s]' % (args[2],args[3])
+            else:
+                raise TypeError('Subscript type not yet handled: %s' % type_script)
+            
+            converted_line = subscript + ' = ' + str(val_assign) +';'
+            return converted_line
+        
+        elif(type_check == tuple):
+            func_name = val_assign[0]
+            val_assign = val_assign[1]
+            type_check = 'auto'
+            #print('TREATED AS STORED FUNCTION CALL: ',func_name)
+            args = val_assign
+            for j in reversed(range(0,len(args))):
+                found = False
+                for i in reversed(range(0,len(converted_lines))):
+                    declaration_check = '%s = ' % args[j]
+                    if(declaration_check not in converted_lines[i]):
+                        pass
+                    else:
+                        found = True
+                if(arg_vars != [] and found == False):
+                    for i in range(0,len(arg_vars)):
+                        if(args[j] not in arg_vars[i]):
+                            pass
+                        else:
+                            found = True
+                else:
+                    pass
+                if(function_body != [] and found == False):
+                    for i in reversed(range(0,len(function_body))):
+                        declaration_check = '%s = ' % args[j]
+                        if(declaration_check not in converted_lines[i]):
+                            pass
+                        else:
+                            found = True
+                
+                if(found == False):
+                    args[j] = '"%s"' % args[j]
+                else:
+                    pass
+                
+            out_args = ''
+            for i in range(0,len(args)):
+                out_args += args[i] + ', '
+            out_args = out_args[:-2]
+            
+            val_assign = func_name + '(' + out_args + ')'
+        
+        elif(type_check == list and val_assign[0] == 'BinOp'):
             op_string = val_assign[1]
             eq_string = ''
             for i in op_string:
@@ -110,13 +201,38 @@ class AssignParser(ast.NodeVisitor):
             eq_string = eq_string[:-1]
             val_assign = eq_string
             if('+' in val_assign):
-                #@todo check when sorted definition properly
+                found = False
                 for i in reversed(range(0,len(converted_lines))):
                     find_def = '%s = ' %  op_string[0]
                     if(find_def in converted_lines[i]):
                         type_check = converted_lines[i].split(' ')[0]
+                        found = True
                     else:
                         pass
+                function_var = ' %s' % op_string[0]
+                if(arg_vars != [] and found == False):
+                    for i in range(0,len(arg_vars)):
+                        #print(arg_vars[i])
+                        if(function_var not in arg_vars[i]):
+                            pass
+                        else:
+                            type_check = arg_vars[i].split(' ')[0]
+                            found = True
+                else:
+                    pass
+                if(function_body != [] and found == False):
+                    for i in reversed(range(0,len(function_body))):
+                        declaration_check = '%s = ' % args[j]
+                        if(declaration_check not in converted_lines[i]):
+                            pass
+                        else:
+                            type_check = converted_lines[i].split(' ')[0]
+                            found = True
+                
+                if(found == False):
+                    type_check = 'float'
+                else:
+                    pass
             else:
                 type_check = 'float'
         elif(type_check == list):
@@ -126,15 +242,15 @@ class AssignParser(ast.NodeVisitor):
                 inside_level = inside_level[0]
                 nest_level+=1
             nest_level-=1
-            type_check = 'vector<'*(nest_level+1)+str(type(inside_level))+'>'*(nest_level+1)
+            type_check = 'std::vector<'*(nest_level+1)+str(type(inside_level))+'>'*(nest_level+1)
             val_assign = str(val_assign).replace('[','{').replace(']','}')
         elif(type_check == str):
             val_assign = '"%s"' % val_assign
-            type_check = 'string'
+            type_check = 'std::string'
         else:
             pass
         converted_line = str(type_check).replace("<class '",'').replace("'>","") + ' %s = %s;' % (name_assign,val_assign)
-        print(converted_line)
+        #print(converted_line)
         return converted_line
         #return ['store', name_assign, val_assign]
 
@@ -174,6 +290,7 @@ class SubscriptParser(ast.NodeVisitor):
             list_slice.append('index')
             list_slice.append(name)
             list_slice.append(index)
+            #converted_line = '%s[%s]' % (name,index)
         elif(type(node.slice) == ast.Slice):
             lower_index = general_access_node(node.slice.lower)
             upper_index = general_access_node(node.slice.upper)
@@ -181,9 +298,11 @@ class SubscriptParser(ast.NodeVisitor):
             list_slice.append(name)
             list_slice.append(lower_index)
             list_slice.append(upper_index)
+            #converted_line = '%s[%s:%s]' % (name,lower_index,upper_index)
         else:
             pass #@todo ExtSlice
-        return list_slice
+        return 'subscript',list_slice
+        #return 'subscript',converted_line
 
 class BinOpParser(ast.NodeVisitor):
     def visit_BinOp(self,node):
@@ -209,7 +328,7 @@ class ExprParser(ast.NodeVisitor):
         global converted_lines, function_body, arg_vars
         line = general_access_node(node.value)
         function = line[0]
-        print('EXPR: ',line)
+        #print('EXPR: ',line)
         if(function == 'print'):
             function = 'std::cout << '
             args = line[1]
@@ -273,10 +392,47 @@ class ExprParser(ast.NodeVisitor):
                 args_string += str(args[i]) + ', '
             args_string = args_string[:-2]
             converted_line = '%s%s);' % (function,args_string)
-            print(converted_line)
+            #print(converted_line)
         else:
-            #@todo function call in here
-            converted_line = None
+            #print('TREATED AS FUNCTION CALL: ',function)
+            args = line[1]
+            for j in reversed(range(0,len(args))):
+                found = False
+                for i in reversed(range(0,len(converted_lines))):
+                    declaration_check = '%s = ' % args[j]
+                    if(declaration_check not in converted_lines[i]):
+                        pass
+                    else:
+                        found = True
+                if(arg_vars != [] and found == False):
+                    for i in range(0,len(arg_vars)):
+                        if(args[j] not in arg_vars[i]):
+                            pass
+                        else:
+                            found = True
+                else:
+                    pass
+                if(function_body != [] and found == False):
+                    for i in reversed(range(0,len(function_body))):
+                        declaration_check = '%s = ' % args[j]
+                        if(declaration_check not in converted_lines[i]):
+                            pass
+                        else:
+                            found = True
+                
+                if(found == False):
+                    args[j] = '"%s"' % args[j]
+                else:
+                    pass
+                
+            out_args = ''
+            for i in range(0,len(args)):
+                out_args += args[i] + ', '
+            out_args = out_args[:-2]
+            
+            converted_line = function + '(' + out_args + ')' + ';'
+            #converted_line = ['expr',converted_line]
+            #print(converted_line)
         return converted_line   
         #return 'func', line
         
@@ -284,9 +440,14 @@ class CallParser2(ast.NodeVisitor):
     def visit_Call(self,node):
         func_type = general_access_node(node.func)
         args_list = []
-        
+        #print(func_type)
         for i in range(0,len(node.args)):
             args_list.append(general_access_node(node.args[i]))
+        if(func_type == 'len'):
+            converted_func = args_list[0] + '.size()'
+            return converted_func
+        else:
+            pass
         return func_type, args_list
 
 class ReturnParser(ast.NodeVisitor):
@@ -306,34 +467,60 @@ class TupleParser(ast.NodeVisitor):
 
 class IfParser(ast.NodeVisitor):
     def visit_If(self,node):
-        total_block = []
+        global converted_lines, top_level_if
+
         if_block = []
-        total_block.append('if')
+        condition = general_access_node(node.test)
+        condition_string = ''
+        for i in range(0,len(condition)):
+            condition_string += str(condition[i]) + ' '
+        condition_string = condition_string[:-1]
+        if(top_level_if):
+            statement = 'if (%s) {' % condition_string
+            top_level_if = False
+        else:
+            statement = 'else if (%s) {' % condition_string
+        if_block.append(statement)
 
-        if_block.append(general_access_node(node.test))
-        body = []
         for i in node.body:
-            body.append(general_access_node(i))
+            line = general_access_node(i)
+            if_block.append(line)
+            
+        if_block.append('}')
 
-        if_block.append(body)
-
-        elif_block = []
+        if('else if' in if_block[0]):
+            if_block.append('else {')
+        else:
+            pass
         for i in node.orelse:
-            elif_block.append(general_access_node(i))
+            line = general_access_node(i)
 
-        total_block.append(if_block)
-        total_block.append(elif_block)
+            if_block.append(line)
 
-        return total_block
+        #@todo figure out a better way to ensure correct number of closing braces
+        if(if_block[-1][-1] == '}'):
+            pass
+        else:
+            if_block.append('}')
+
+        top_level_if = True
+
+        return if_block
 
 class CompareParser(ast.NodeVisitor):
     def visit_Compare(self,node):
         left_arg = general_access_node(node.left)
+        ast_ops = [ast.Eq,ast.NotEq,ast.Lt,ast.LtE,ast.Gt,ast.GtE,ast.Is,ast.IsNot,ast.In,ast.NotIn]
+        c_ops = ['==','!=','<','<=','>','>=','TODO','TODO','TODO','TODO']
+        
+        #@todo handle the is and in operators for c++
         
         full_args = []
         full_args.append(left_arg)
         for i in range(0,len(node.ops)):
-            full_args.append(node.ops[i])
+            index = ast_ops.index(type(node.ops[i]))
+            c_op = c_ops[index]
+            full_args.append(c_op)
             full_args.append(general_access_node(node.comparators[i]))
         
         return full_args
@@ -346,26 +533,33 @@ class NameParser(ast.NodeVisitor):
 class ForParser(ast.NodeVisitor):
     def visit_For(self,node):
         iterator = general_access_node(node.target)
-
         condition = general_access_node(node.iter)
-        
+        if(condition[0] == 'range'):
+            lower_limit = condition[1][0]
+            upper_limit = condition[1][1]
+            for_condition = 'for (int %s = %s; %s < %s; %s++) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
+        else:
+            vector = condition[0]
+            for_condition = 'for (auto %s: %s) {' % (iterator,vector)
+
         body_block = []
+        body_block.append(for_condition)
         for i in node.body:
             body_block.append(general_access_node(i))
-
-        return 'for', iterator, condition, body_block
+        body_block.append('}')
+        return body_block
 
 class AttributeParser(ast.NodeVisitor):
     def visit_Attribute(self,node):
         attribute = node.attr
         value = general_access_node(node.value)
-        #print('Attribute: ',attribute,value)
+        
         if(attribute=='append'):
             attribute = 'push_back'
         else:
             raise TypeError('Attribute type not handled yet: %s,%s' % (attribute,value))
+        
         converted_line = '%s.%s(' % (value,attribute)
-        #return value, attribute
         return converted_line
 
 def general_access_node(node):
@@ -400,7 +594,7 @@ def general_access_node(node):
     elif(type(node) == ast.Name):
         parsed_node = NameParser().visit_Name(node)
     elif(type(node) == ast.Pass):
-        parsed_node = node
+        parsed_node = 'continue;'
     elif(type(node) == ast.Attribute):
         parsed_node = AttributeParser().visit_Attribute(node)
     elif(type(node) == str):
@@ -411,46 +605,131 @@ def general_access_node(node):
     return parsed_node
 
 def main(script_to_parse,script_of_function_calls=None):
-    global converted_lines
+    global converted_lines, list_types
+    list_types = []
+    converted_lines = []
+    
     if(script_of_function_calls!=None):
         file2 = open(script_of_function_calls,'r').read()
         call_parse = ast.parse(file2)
-        function_call_parser = CallParser()
-        function_call_parser.visit(call_parse)
+        for node in call_parse.body:
+            funcs_args = []
+            for arg in node.value.args:
+                arg_val = general_access_node(arg)
+                if isinstance(arg_val,int):
+                    funcs_args.append('int')
+                elif isinstance(arg_val,float):
+                    funcs_args.append('float')
+                elif isinstance(arg_val,str):
+                    funcs_args.append('std::string')
+                elif isinstance(arg_val,list):
+                    inside_level = arg_val[0]
+                    nest_level = 1
+                    if isinstance(inside_level,list):
+                        inside_level = inside_level[0]
+                        nest_level+=1
+                        while(isinstance(inside_level,list)):
+                            inside_level = inside_level[0]
+                            nest_level+=1
+                        type_check = type(inside_level)
+                        
+                    else:
+                        type_check = type(inside_level)
+                    
+                    type_list = ('std::vector<'*nest_level)+str(type_check).replace("<class '",'').replace("'>",'') + ('>'*nest_level)
+                    funcs_args.append(type_list)
+            list_types.append(funcs_args)
     else:
         pass
     
     file = open(script_to_parse,'r').read()
     tree = ast.parse(file)
-    
-    parsed_lines = []
+    main = False
     for node in tree.body:
-        line = []
         line_test = general_access_node(node)
-
-        line.append(line_test)
+        
+        if(line_test != None and 'auto' in line_test and '{' in line_test):
+            pass
+        else:
+            if(main==False):
+                converted_lines.append('int main() {')
+                main=True
+            else:
+                pass
         if(line_test not in converted_lines and line_test != None):
             converted_lines.append(line_test)
         else:
-            pass     
-      
-        parsed_lines.append(line)
-    
-    #print(ast.dump(tree))
-    
-    
-    
-    
-    for i in range(0,len(parsed_lines)):
-        if(parsed_lines[i]==[]):
-            parsed_lines[i] = ['#Parsing Failed']
-        else:
             pass
-        
-    return parsed_lines
+    converted_lines.append('return 0;')
+    converted_lines.append('}')
+    if(('std::cout' in line for line in converted_lines) or ('std::cin' in line for line in converted_lines)):
+        converted_lines.insert(0,'#include <iostream>')
+    else:
+        pass
+    if('std::string' in line for line in converted_lines):
+        converted_lines.insert(0,'#include <string>')
+    else:
+        pass
+    if('std::vector' in line for line in converted_lines):
+        converted_lines.insert(0,'#include <vector>')
+    return converted_lines
+
+def write_file(name_of_output,data):
+    file = open(name_of_output,'w+')
+    indentation_level=0
+    for line in data:
+        if(type(line) != list and type(line) != tuple):
+            
+            open_brace_count = line.count('{')
+            close_brace_count = line.count('}')
+            if(open_brace_count>close_brace_count):
+                file.write(('\t'*indentation_level)+line+'\n')
+                indentation_level+=1
+            elif(open_brace_count<close_brace_count):
+                indentation_level-=1
+                file.write(('\t'*indentation_level)+line+'\n')
+            else:
+                file.write(('\t'*indentation_level)+line+'\n')
+            
+        else:
+            array = np.array(line)
+            flattened = array.flatten()
+            for body_line in flattened:
+                if(type(body_line) == list):
+                    for i in body_line:
+                        
+                        open_brace_count = i.count('{')
+                        close_brace_count = i.count('}')
+                        if(open_brace_count>close_brace_count):
+                            file.write(('\t'*indentation_level)+str(i)+'\n')
+                            indentation_level+=1
+                        elif(open_brace_count<close_brace_count):
+                            indentation_level-=1
+                            file.write(('\t'*indentation_level)+str(i)+'\n')
+                        else:
+                            file.write(('\t'*indentation_level)+str(i)+'\n')
+                        
+                else:
+                    open_brace_count = body_line.count('{')
+                    close_brace_count = body_line.count('}')
+                    if(open_brace_count>close_brace_count):
+                        file.write(('\t'*indentation_level)+str(body_line)+'\n')
+                        indentation_level+=1
+                    elif(open_brace_count<close_brace_count):
+                        indentation_level-=1
+                        file.write(('\t'*indentation_level)+str(body_line)+'\n')
+                    else:
+                        file.write(('\t'*indentation_level)+str(body_line)+'\n')
+                    
+    file.close()
 
 if __name__ == '__main__':
-    main('Test.py','CallTest.py')
-
+    top_level_if = True
+    print('Beginning Parsing')
+    converted_data = main('Test.py','CallTest.py')
+    print('Parsing Completed')
+    print('Writing File')
+    write_file('Test.cpp',converted_data)
+    print('Writing Completed')
 
 
