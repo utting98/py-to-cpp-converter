@@ -37,3 +37,6 @@ for i in range(0,len(g)):
     g.append(9.9)
 test_value = g[1]
 g[3] = 5.1
+incrementor = 1
+while(incrementor<10):
+    incrementor+=1
