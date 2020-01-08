@@ -29,7 +29,7 @@ Else statements
 
 Pass command
 
-Operator separated variables
+Operator separated variables/numbers
 
 Function definitions
 
@@ -47,15 +47,20 @@ List element access/overwrite
 
 Store list elements under a variable
 
+While loops
+
 
 TODO:
-
-While loops
 
 Class definitions
 
 Nesting more if statements inside a final else statedment, currently causes an issue where the first if inside it becomes an else if
 
-See @todo comments in PytoCpp.py for known bugs to work on
+Input commands
+
+See @todo comments in PytoCpp.py for known bugs / missing features to work on
+
+
+Also see Test.py for show of currently convertible functions, each time one is added I update the Test.py script to include it to show that it works.
 
 If you have a knowledge of both python and C++ please feel free to contribute to this project as it will be a huge undertaking by myself. If you do contribute please ensure you document all of your code to help me and any other contributers understand your additions.
