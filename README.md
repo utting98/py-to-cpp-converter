@@ -49,6 +49,8 @@ Store list elements under a variable
 
 While loops
 
+Boolean statements
+
 
 TODO:
 
