@@ -56,5 +56,6 @@ Class definitions
 
 Nesting more if statements inside a final else statedment, currently causes an issue where the first if inside it becomes an else if
 
+See @todo comments in PytoCpp.py for known bugs to work on
 
 If you have a knowledge of both python and C++ please feel free to contribute to this project as it will be a huge undertaking by myself. If you do contribute please ensure you document all of your code to help me and any other contributers understand your additions.
