@@ -18,12 +18,20 @@ print("Hello3")
 if(a==1):
     print(c)
     print(d)
+    if(c=='Hello'):
+        print('Yay')
+    else:
+        print('Nay')
 elif(b==2):
     print("Test")
+    if(d=='World'):
+        print('Yay 2')
+    else:
+        print('Nay 2')
 else:
     pass
 print('Extra')
-TestFunction(a,g,c,b)
+value = TestFunction(a,g,c,b)
 for i in range(0,len(g)):
     g[i] = 1.1
     g.append(9.9)
