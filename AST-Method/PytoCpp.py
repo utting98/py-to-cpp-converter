@@ -559,6 +559,36 @@ class AttributeParser(ast.NodeVisitor):
         converted_line = '%s.%s(' % (value,attribute) #define the converted line
         return converted_line #return the converted line
 
+#define parser for while nodes
+class WhileParser(ast.NodeVisitor):
+    def visit_While(self,node): #visit while node
+        while_body = [] #define while block
+        condition = general_access_node(node.test) #convert the while condition
+        condition_string = '' #define string for the condition
+        for i in condition: #iterate over the elements in the condition list
+            condition_string+=str(i)+' ' #add the condition element and a space
+        condition_string = condition_string[:-1] #remove the extra space
+        condition_line = 'while (%s) {' % condition_string #define the while statement
+        while_body.append(condition_line) #append the while statement to the block
+        for i in node.body: #iterate over nodes in the body of the while loop
+            line = general_access_node(i) #classify and convert the node
+            while_body.append(line) #append the converted line to the block
+        while_body.append('}') #close the while loop
+        #@todo handle the orelse node
+        return while_body #return the while block
+
+#define parser for AugAssign nodes
+class AugAssignParser(ast.NodeVisitor):
+    def visit_AugAssign(self,node): #visit AugAssign nodes
+        var = general_access_node(node.target) #get the variable value is assigned to
+        ast_operators = [ast.Add,ast.Sub,ast.Div,ast.Mult] #define list of ast operators
+        c_ops = ['+=','-=','/=','*='] #define corresponding list of c++ operators
+        index = ast_operators.index(type(node.op)) #get the index matching the operator
+        operator = c_ops[index] #get the correspoding c++ operator to the matched operator
+        value = general_access_node(node.value) #classify and convert the value node
+        converted_line = '%s %s %s;' % (var,operator,value) #format the aug assign string
+        return converted_line #return the converted line
+
 #define function to check if a value is a string or a variable as they are classified the same by the AST
 def string_or_var(value):
     global converted_lines, arg_vars, function_body #have access to relevant globals
@@ -638,6 +668,10 @@ def general_access_node(node):
         parsed_node = AttributeParser().visit_Attribute(node)
     elif(type(node) == str):
         parsed_node = node
+    elif(type(node) == ast.While):
+        parsed_node = WhileParser().visit_While(node)
+    elif(type(node) == ast.AugAssign):
+        parsed_node = AugAssignParser().visit_AugAssign(node)
     else: #if the type of node does not yet have a parser raise a type error which diesplays the type to know what parser needs to be made next
         raise TypeError('Parser not found for type: %s' % type(node))
         
