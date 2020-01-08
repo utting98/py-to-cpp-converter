@@ -50,5 +50,9 @@ int main () {
 	}
 	float test_value = g[1];
 	g[3] = 5.1;
+	int incrementor = 1;
+	while (incrementor < 10) {
+		incrementor += 1;
+	}
 	return 0;
 }
