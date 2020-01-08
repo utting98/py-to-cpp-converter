@@ -9,7 +9,7 @@ auto TestFunction (int a, std::vector<float> b, std::string c, float randfloat) 
 	struct result {int dummy_return_0; float dummy_return_1;};
 	return result {x_value, y_value};
 }
-int main() {
+int main () {
 	int a = 1;
 	int e = -2;
 	float b = 2.2;
@@ -23,15 +23,27 @@ int main() {
 	if (a == 1) {
 		std::cout << c << endl;
 		std::cout << d << endl;
+		if (c == "Hello") {
+			std::cout << "Yay" << endl;
+		}
+		else {
+			std::cout << "Nay" << endl;
+		}
 	}
 	else if (b == 2) {
 		std::cout << "Test" << endl;
+		if (d == "World") {
+			std::cout << "Yay 2" << endl;
+		}
+		else {
+			std::cout << "Nay 2" << endl;
+		}
 	}
 	else {
 		continue;
 	}
 	std::cout << "Extra" << endl;
-	TestFunction(a, g, c, b);
+	auto value = TestFunction(a, g, c, b);
 	for (int i = 0; i < g.size(); i++) {
 		g[i] = 1.1;
 		g.push_back(9.9);
