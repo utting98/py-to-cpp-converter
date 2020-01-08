@@ -246,9 +246,13 @@ class AssignParser(ast.NodeVisitor):
             val_assign = str(val_assign).replace('[','{').replace(']','}') #convert list formatting to vector formatting
         #if val_assign is a string
         elif(type_check == str): 
-            #val_assign could be equal to 'Hello' for example
-            val_assign = '"%s"' % val_assign #add speech marks around the value to allow string formatting
-            type_check = 'std::string' #specify the type to declare as std::string
+            #check to ensure it is not a bool value
+            if(val_assign == 'true' or val_assign == 'false'):
+                type_check = 'bool' #set type as bool
+            else:
+                #val_assign could be equal to 'Hello' for example
+                val_assign = '"%s"' % val_assign #add speech marks around the value to allow string formatting
+                type_check = 'std::string' #specify the type to declare as std::string
         #for any other standard type, for example val_assign = 3.3, type_check = <class 'float'>
         else: 
             pass
@@ -454,7 +458,7 @@ class IfParser(ast.NodeVisitor):
         if_block.append('}') #close the if statement block
 
         #check if the else block contains another if block (this occurs if an elif statement is used)
-        if(type(node.orelse[0]) != ast.If): #if no elif statement in if block
+        if(node.orelse == [] or type(node.orelse[0]) != ast.If): #if no elif statement in if block
             if_block.append('else {') #append an else statement
         else:
             pass
@@ -589,6 +593,17 @@ class AugAssignParser(ast.NodeVisitor):
         converted_line = '%s %s %s;' % (var,operator,value) #format the aug assign string
         return converted_line #return the converted line
 
+#define parser for name constant nodes
+class NameConstantParser(ast.NodeVisitor):
+    def visit_NameConstant(self,node): #visit name constant node
+        #node.value should be True False or None
+        if(node.value == True): #if True return C++ bool true
+            return 'true'
+        elif(node.value == False): #if false return C++ bool false
+            return 'false'
+        else: #if none flag not handled yet
+            raise TypeError('NameConstant not true or false and not handled : %s' % node.value)
+
 #define function to check if a value is a string or a variable as they are classified the same by the AST
 def string_or_var(value):
     global converted_lines, arg_vars, function_body #have access to relevant globals
@@ -618,7 +633,7 @@ def string_or_var(value):
             else: #if match flag that a match was found
                 found = True
     
-    if(found == False): #if no match default to string
+    if(found == False and value != 'true' and value != 'false'): #if no match default to string
         value = '"%s"' % value
     else:
         pass
@@ -672,6 +687,8 @@ def general_access_node(node):
         parsed_node = WhileParser().visit_While(node)
     elif(type(node) == ast.AugAssign):
         parsed_node = AugAssignParser().visit_AugAssign(node)
+    elif(type(node) == ast.NameConstant):
+        parsed_node = NameConstantParser().visit_NameConstant(node)
     else: #if the type of node does not yet have a parser raise a type error which diesplays the type to know what parser needs to be made next
         raise TypeError('Parser not found for type: %s' % type(node))
         
