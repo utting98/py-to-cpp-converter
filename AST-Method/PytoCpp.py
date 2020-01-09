@@ -753,9 +753,8 @@ def main(script_to_parse,script_of_function_calls=None):
                 pass
         #check to see if the returned value has already been added to the converted lines and the return was not a void one
         #if it is not a NoneType return and has not yet been added to converted lines then add it
-        #@todo ? perhaps change the not in converted_lines condition to check it was not the last line added instead
-        #this condition currently could possibly cause a line to be skipped if it is the same as another line written previously
-        if(line_test not in converted_lines and line_test != None):
+        #modified to check if the line was just appended to the converted lines list, may cause issue if you write the same line twice in a row, untested
+        if(line_test != converted_lines[len(converted_lines)-1] and line_test != None):
             converted_lines.append(line_test)
         else: #if it has been addded or is NoneType do nothing
             pass
