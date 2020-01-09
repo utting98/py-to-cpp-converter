@@ -56,11 +56,13 @@ TODO:
 
 Class definitions
 
-Nesting more if statements inside a final else statedment, currently causes an issue where the first if inside it becomes an else if
+Nesting more if statements inside a final else statement, currently causes an issue where the first if inside it becomes an else if
 
 Input commands
 
 See @todo comments in PytoCpp.py for known bugs / missing features to work on
+
+More base python functions e.g. reversed, type etc
 
 
 Also see Test.py for show of currently convertible functions, each time one is added I update the Test.py script to include it to show that it works.
