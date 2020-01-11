@@ -1,7 +1,7 @@
 def TestFunction(a,b,c,randfloat):
     x_value = a+a
     y_value = randfloat/2
-    print(b,a)
+    print(a)
     print(c,randfloat)
     return x_value,y_value
 #Test.py
