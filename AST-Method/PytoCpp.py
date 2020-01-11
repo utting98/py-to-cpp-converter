@@ -361,9 +361,9 @@ class ExprParser(ast.NodeVisitor):
             out_args = '' #string of output arguments
             for i in range(0,len(args)): #iterate over the number of arguments
                 out_args += args[i] + ' << ' #add the argument and ' << ' to the output string 
-            out_args += 'endl' #add an endline to the end of the string
+            out_args += 'std::endl' #add an endline to the end of the string
             
-            converted_line = function + out_args + ';' #make the converted line std::cout << arg1 << arg2 ... << endl;
+            converted_line = function + out_args + ';' #make the converted line std::cout << arg1 << arg2 ... << std::endl;
 
         elif('.' in function): #check if the function is an attribute
             #this means it is an attribute that should have already been resolved
@@ -678,7 +678,7 @@ def general_access_node(node):
     elif(type(node) == ast.Name):
         parsed_node = NameParser().visit_Name(node)
     elif(type(node) == ast.Pass):
-        parsed_node = 'continue;'
+        parsed_node = '\n'
     elif(type(node) == ast.Attribute):
         parsed_node = AttributeParser().visit_Attribute(node)
     elif(type(node) == str):
