@@ -9,17 +9,58 @@ import numpy as np
 class FunctionParser(ast.NodeVisitor):
     def visit_FunctionDef(self, node): #visit the function definition node
         #define relevant globals that require access
-        global converted_lines, function_body, arg_vars, list_types
+        global converted_lines, function_body, arg_vars, list_types, class_args
         arg_vars = [] #list of arguments
         args_string = '' #argument string for conversion
+        init_arg = [] #store a list of arguments to initialise, done for use in any class definitions
+        
         for i in range(0,len(node.args.args)): #iterate over the node arguments
-            arg_val = node.args.args[i].arg #for each arg append the arg name
+            arg_val = node.args.args[i].arg #for each arg get the arg name
+            init_arg.append(arg_val) #append the arg name to the list of args to initialise
+        
+        #class arguments usually start with self, self is not required for c++
+        #a type won't have been defined in the function call for self, therefore if different number of list types to arguments
+        #and first argument is self, remove the argument so the list of types and arguments matches up again
+        if((len(init_arg) != len(list_types[0])) and init_arg[0] == 'self'): 
+            init_arg.pop(0)
+        else:
+            pass
+        
+        #iterate over the arguments to initialise
+        for i in range(0,len(init_arg)):
             arg_type = list_types[0][i] #get the types of the first function's arguments
-            full_arg = arg_type + ' ' + arg_val #define a full argument string as the type and name
+            full_arg = arg_type + ' ' + init_arg[i] #define a full argument string as the type and name
             arg_vars.append(full_arg) #add the full arg definition to list
             args_string += full_arg + ', ' #add the full arag definition to the arg string
         args_string = args_string[:-2] #remove extra ', ' at the end of the line
         list_types.pop(0) #remove the arg types for the arguments that have just been processed
+        
+        #if the name of the function is a class initialilser run a special case
+        if(node.name == '__init__'):
+            class_initialiser = [] #block for class initialisation function
+            class_initialiser.append('public:') #mark following class variables as public for initalising the object
+            class_args = init_arg #set the class args as a copy of the initialiser args
+            for i in node.body: #iterate over the body of the initialiser function
+                line = general_access_node(i) #classify and convert the line of the function
+                splitup = line.split(' ') #split the converted line by space to inspect elements
+                #the following is a messy way to initialise class variables, if it is an initialisation the line will be in the
+                #style std::string name = "name"; which is incorrect formatting due to how these statements are processed elsewhere
+                try:
+                    #check if the first argument of splitup (name) is equal to the final element of splitup inside quotations
+                    #and without the ; ("name";).
+                    if(splitup[1] == ("%s" % splitup[3][:-1]).replace('"','')):
+                        #if it is then its a variable declaration, take the converted arg_vars declaration and add a semicolon
+                        #it will now be in the form std::string name; (or other appropriate type of variable)
+                        string_val = arg_vars[0]+';' 
+                        class_initialiser.append(string_val) #append the new string to the block
+                        arg_vars.pop(0) #remove the arg_var as it has been declared in block
+                    else: #if it doesn't match just append the line
+                        class_initialiser.append(line)
+                except: #if splitup element access fails just append the line as the above condition will not occur
+                    class_initialiser.append(line)
+            return class_initialiser #return the initialised class function
+        else:
+            pass
         
         function_body = [] #define list for the main body of the function
         for i in node.body: #iterte over the nodes in the body of the function
@@ -55,23 +96,52 @@ class FunctionParser(ast.NodeVisitor):
                         function_body.append(return_string) #add the return string to the function body
             else: #if the node is not a return determine the type and convert it then add to function body
                 function_body.append(general_access_node(i))
+        if('return' in function_body[-1]): #check if the function was ended with a return
+            pass
+        else: #if no return add one
+            function_body.append('return;')
         if(node.name == 'main'): #add a catch to prevent duplicate main functions within the converted script
             raise NameError('A function named "main" cannot be used within a C++ script as it is the default insertion point for the code, please rename this function in your script, this script will fill in a C++ main function automatically')
         else:
             pass
+        
+        function = [] #block for whole function
         #define the c++ function definition with the function name and the arguments string
         function_def = 'auto %s (%s) {' % (node.name, args_string)
-        converted_lines.append(function_def) #add the function definition line
-        converted_lines.append(function_body) #add the function body
-        converted_lines.append('}') #close the open function brace
+        function.append(function_def) #add the function definition line
+        function.append(function_body) #add the function body
+        function.append('}') #close the open function brace
         arg_vars = [] #reset arg_vars as it is global
         function_body = [] #reset function body as it is global
-        return #None type return as the whole block has already been added to conversion
+        return function #return whole function
+
+#define parser for class definitions
+class ClassDefParser(ast.NodeVisitor):
+    def visit_ClassDef(self,node): #visit class definition node
+        global class_args #access to relevant globals
+        class_block = [] #block of lines of converted class
+        class_name = node.name #get the name of the class
+        class_dec = 'class %s {' % class_name #make a converted class statement
+        class_block.append(class_dec) #append the class stement to the block
+        
+        class_body = [] #make list of body of class statement
+        for i in node.body: #iterate over the nodes in the body
+            line = general_access_node(i) #convert the line of nodes and return
+            class_body.append(line) #append the converted line to the body
+        
+        class_block.append(class_body) #append the body to the block
+        class_block.append('};') #close off the class definition
+        
+        #@todo these properties
+        #print(node.bases)
+        #print(node.keywords)
+        #print(node.decorator_list)
+        return class_block #return the class block
 
 #parser class for assign statements, anything with an =
 class AssignParser(ast.NodeVisitor):
     def visit_Assign(self,node): #function to visit the assign node
-        global converted_lines, arg_vars #access to required globals
+        global converted_lines, arg_vars, class_vars_for_call, called_objs #access to required globals
         for name in node.targets: #iterate over the node targets
             name_assign = general_access_node(name) #get the name, this is the variable the value is assigned to
         if(type(node.value) == ast.BinOp): #check for binary operators in the statement
@@ -90,10 +160,64 @@ class AssignParser(ast.NodeVisitor):
             val_assign = ['BinOp',val_assign] #specify that this was a BinOp assignment 
         else: #if it wasn't a bin op find the type of node and convert the value to appropriate formatting
             val_assign = general_access_node(node.value)
-
+        
+        try:
+            if(name_assign==("%s" % val_assign)): #if name_assign assign and val assign are the same
+                class_vars_for_call.append(val_assign) #store the val in a list of class variables
+            else:
+                pass
+        except:
+            pass
+        
         type_check = type(val_assign) #find the type data the value assign is
+        #if the val_assign is a call to create an object this condition will be met, this method is a bit messy and could potentially do with reworking
+        if(type_check == tuple and any(('class %s {' % val_assign[0]) in x for x in converted_lines)):
+            #print(val_assign[0], name_assign, val_assign[1])
+            #val_assign will have format (Class_Name,[init_arg,init_arg,...])
+            obj_declaration = [] #make list for object declaration
+            secondary_class_store = [] #secondary list of class
+            assign_obj = '%s %s;' % (val_assign[0],name_assign) #definition of creating object conversion
+            obj_declaration.append(assign_obj) #add object declaration to body
+            args_obj = val_assign[1] #isolate arguments of the object declaration
+            count = 0 #iterator for removing used object args
+            recall = False #flag for if this is the second time an object of the same type is being created
+            for i in range(0,len(called_objs)): #iterate over list of previously called classes
+                if(val_assign[0] == called_objs[i][0]): #check if this object is same type as existing
+                    recall = True #mark that this is a recall
+                    break #stop iterating
+                else:
+                    pass
+            if(recall==False): #if this is the first time this class has been called
+                secondary_class_store.append(val_assign[0]) #append the type to secondary list tracking classes called
+                for i in range(0,len(args_obj)): #iterate over the object args
+                    if(type(args_obj[i]) == str): #if type of arg is a string
+                        args_obj[i] = string_or_var(args_obj[i]) #check if was a string or variable, replace it with variable if variable
+                    else:
+                        pass
+                    secondary_class_store.append(class_vars_for_call[i]) #store the class variable name
+                    converted_line = '%s.%s = %s;' % (name_assign,class_vars_for_call[i],args_obj[i]) #initialise class parameters with values
+                    count+=1 #increase count of variables from class_vars_for_call used
+                    obj_declaration.append(converted_line) #append the converted line to the declaration block of the object
+                called_objs.append(secondary_class_store) #append previously called objects with the secondary list of class info
+                class_vars_for_call = class_vars_for_call[count:] #omit the used up variables from the class_vars_for_call list
+            else: #if the class has been called before
+                for j in range(0,len(called_objs)): #iterate over the previously called objects list
+                    if(called_objs[j][0] == val_assign[0]): #find the match case for this call
+                        for k in range(1,len(called_objs[j])): #iterate over the arguments in that match call
+                            #args_obj will take values one less than the corresponding stored argument as the first argument in a called_objs element will be the name of the class
+                            #therefore called_objs[j] = ['Class_name',arg1,arg2,...], so for each k the corresponding arg to use is k-1
+                            if(type(args_obj[k-1]) == str): #if type of arg is a string
+                                args_obj[k-1] = string_or_var(args_obj[k-1]) #check if was a string or variable, replace it with variable if variable
+                            else:
+                                pass
+                            converted_line = '%s.%s = %s;' % (name_assign,called_objs[j][k],args_obj[k-1]) #initialise class parameters with values
+                            obj_declaration.append(converted_line) #append the converted line to the object declaration
+                        break #break loop as relevant match found
+                    else:
+                        pass
+            return obj_declaration #return the object declaration
         #if the val_assign is a return from the subscript parser this condition will be met
-        if(type_check == tuple and val_assign[0] == 'subscript'):
+        elif(type_check == tuple and val_assign[0] == 'subscript'):
             #val_assign here will be ('subscript',['index',list_name,index_value])
             args = val_assign[1] #arguments of the assign statement stored
             list_name = args[1] #the name of the list is the argument 1
@@ -356,6 +480,7 @@ class ExprParser(ast.NodeVisitor):
             args = line[1] #store the arguments of the function
             #iterate over the function arguments, this is to check if the argument is a variable or a string
             for j in range(0,len(args)):
+                #print(args)
                 args[j] = string_or_var(args[j])
 
             out_args = '' #string of output arguments
@@ -404,6 +529,7 @@ class CallParser2(ast.NodeVisitor):
         func_type = general_access_node(node.func) #call to get the value of the name of the function being called
         args_list = [] #list for arguments of tbhe function
         for i in range(0,len(node.args)): #iterate over the arguments of the function
+            #print(node.args[i])
             args_list.append(general_access_node(node.args[i])) #classify and extract the value of the arguments of the function
         if(func_type == 'len'): #special case for the len function as this is an attribute of .size() in C++, other special conditions can be coded in here
             converted_func = args_list[0] + '.size()' #e.g. if it was len(a) change to a.size()
@@ -545,7 +671,16 @@ class ForParser(ast.NodeVisitor):
         body_block = [] #define body of for loop
         body_block.append(for_condition) #append the for condition to the body
         for i in node.body: #for each node in the body
-            body_block.append(general_access_node(i)) #convert the node and append it to the block
+            line = general_access_node(i) #classify and convert the line
+            if('std::cout << ' in line): #check if attempting to print something
+                splitup = line.split(' << ') #split on the args separator
+                for i in range(0,len(splitup)): #iterate over the split args
+                    if(splitup[i] == ('"%s"' % iterator)): #check if the arg is the iterator which has falsely been converted in to a string
+                        splitup[i] = iterator #if false conversion made switch out for iterator
+                        line = ' << '.join(splitup) #rejoin the line
+                    else: #if no false string pass
+                        pass
+            body_block.append(line) #convert the node and append it to the block
         body_block.append('}') #close the for brace
         return body_block #return the body
 
@@ -554,11 +689,16 @@ class AttributeParser(ast.NodeVisitor):
     def visit_Attribute(self,node): #visit the attribute node
         attribute = node.attr #gives the function being applied, e.g for a.append, returns append
         value = general_access_node(node.value) #classify and convert the object being appended
-        
+        #print(attribute,value)
         if(attribute=='append'): #if the atrribute is append
             attribute = 'push_back' #replace with vector push_back method
-        else: #if not raise a type error to flag this attribute is not yet handled
-            raise TypeError('Attribute type not handled yet: %s,%s' % (attribute,value))
+        elif(value=='self'): #if not raise a type error to flag this attribute is not yet handled
+            #converted_line = '%s.%s' % (value,attribute)
+            return attribute
+            #return None
+            #raise TypeError('Attribute type not handled yet: %s,%s' % (attribute,value))
+        else:
+            pass
         
         converted_line = '%s.%s(' % (value,attribute) #define the converted line
         return converted_line #return the converted line
@@ -606,7 +746,7 @@ class NameConstantParser(ast.NodeVisitor):
 
 #define function to check if a value is a string or a variable as they are classified the same by the AST
 def string_or_var(value):
-    global converted_lines, arg_vars, function_body #have access to relevant globals
+    global converted_lines, arg_vars, function_body, class_args #have access to relevant globals
     found = False #flag no match found
     #iterate backwards over converted lines looking for a match, backwards to get most recent definition
     for i in reversed(range(0,len(converted_lines))):
@@ -628,11 +768,19 @@ def string_or_var(value):
     if(function_body != [] and found == False):
         for i in reversed(range(0,len(function_body))): #iterate backwards over function body to get most recent definition
             declaration_check = '%s = ' % value #look for declaration of variable
-            if(declaration_check not in converted_lines[i]): #if no match pass
+            if((converted_lines==[]) or declaration_check not in converted_lines[i]): #if no match pass
                 pass
             else: #if match flag that a match was found
                 found = True
-    
+    #if there is an active class check for a match in its declarated arguments
+    if(class_args != [] and found == False):
+        for i in range(0,len(class_args)): #iterate over class args to check for match
+            declaration_check = '%s' % value #look for declaration of variable
+            if((class_args==[]) or declaration_check not in class_args[i]): #if no match pass
+                pass
+            else: #if match flag that a match was found
+                found = True
+
     if(found == False and value != 'true' and value != 'false'): #if no match default to string
         value = '"%s"' % value
     else:
@@ -689,9 +837,11 @@ def general_access_node(node):
         parsed_node = AugAssignParser().visit_AugAssign(node)
     elif(type(node) == ast.NameConstant):
         parsed_node = NameConstantParser().visit_NameConstant(node)
+    elif(type(node) == ast.ClassDef):
+        parsed_node = ClassDefParser().visit_ClassDef(node)
     else: #if the type of node does not yet have a parser raise a type error which diesplays the type to know what parser needs to be made next
         raise TypeError('Parser not found for type: %s' % type(node))
-        
+    
     return parsed_node #return the parsed/converted node value
 
 #define the main function for parsing and converting a script,takes arguments of the name of a python script and the name of a script with example function calls
@@ -743,7 +893,8 @@ def main(script_to_parse,script_of_function_calls=None):
     for node in tree.body: #iterate over the nodes in the body of the AST
         line_test = general_access_node(node) #run function to determine the type of the node and convert it accordingly
         #if the line had a function definition it has already been added to converted lines so this condition is added to stop duplicate addition, these are the conditions that will be met if that is true
-        if(line_test != None and 'auto' in line_test and '{' in line_test):
+        #print(line_test[0])
+        if(('auto' in line_test[0] and '{' in line_test[0]) or ('class' in line_test[0] and '{' in line_test[0])):
             pass
         else: #if it is not a function definition
             if(main==False): #check if a main has been added yet
@@ -754,10 +905,10 @@ def main(script_to_parse,script_of_function_calls=None):
         #check to see if the returned value has already been added to the converted lines and the return was not a void one
         #if it is not a NoneType return and has not yet been added to converted lines then add it
         #modified to check if the line was just appended to the converted lines list, may cause issue if you write the same line twice in a row, untested
-        if(line_test != converted_lines[len(converted_lines)-1] and line_test != None):
-            converted_lines.append(line_test)
-        else: #if it has been addded or is NoneType do nothing
-            pass
+        #if(line_test != converted_lines[len(converted_lines)-1] and line_test != None):
+        converted_lines.append(line_test)
+        #else: #if it has been addded or is NoneType do nothing
+         #   pass
     converted_lines.append('return 0;') #add a return for the c++ main function
     converted_lines.append('}') #close the main function
     #below are checks to see what include statements are needed for the c++ code
@@ -788,12 +939,18 @@ def walk(e):
 def write_file(data,name_of_output='Output.cpp'):
     file = open(name_of_output,'w+') #open an output file to the specified path for writing/creation
     indentation_level=0 #default indentation level is 0
-
+    public_open = False
     flatten = [] #create a list of flattened line data
     for line in walk(data): #call walk function on converted data
         flatten.append(line) #append the flattened line to the flattened data
-    
+
     for line in flatten: #iterate over the lines in the flattened data
+        #print(line,indentation_level)
+        if(public_open==True and ('auto' in line or '};' in line)):
+            indentation_level-=1
+            public_open=False
+        else:
+            pass
         open_brace_count = line.count('{') #count number of open brackets on the line
         close_brace_count = line.count('}') #count number of closing brackets on the line
         if(open_brace_count>close_brace_count):
@@ -807,6 +964,10 @@ def write_file(data,name_of_output='Output.cpp'):
             #hence the reverse order to the condition above
             indentation_level-=1
             file.write(('\t'*indentation_level)+line+'\n')
+        elif('public:' in line):
+            file.write(('\t'*indentation_level)+line+'\n')
+            indentation_level+=1
+            public_open = True
         else: #if number of braces equal then do not change indentation level
             file.write(('\t'*indentation_level)+line+'\n')
 
@@ -814,6 +975,8 @@ def write_file(data,name_of_output='Output.cpp'):
 
 if __name__ == '__main__':
     top_level_if = True #flag for if statments, method needs revision
+    class_vars_for_call = [] #global list for initialising classes
+    called_objs = [] #global list for called classes
     print('Beginning Parsing') #inform user parsing has began, precaution incase a large file takes a long time parsing
     converted_data = main('Test.py','CallTest.py') #parse Test.py file, function call examples are listed in CallTest.py, if no function calls do not pass second argument
     print('Parsing Completed') #inform user parsing has finished
