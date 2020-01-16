@@ -1,3 +1,10 @@
+class TestObject:
+    def __init__(self,name,value):
+        self.name = name
+        self.value = value
+    def print_object(self):
+        print(self.name)
+        print(self.value)
 def TestFunction(a,b,c,randfloat):
     x_value = a+a
     y_value = randfloat/2
@@ -32,14 +39,24 @@ else:
     pass
 print('Extra')
 value = TestFunction(a,g,c,b)
-for i in range(0,len(g)):
+for i in range(0,5):
     g[i] = 1.1
     g.append(9.9)
 test_value = g[1]
-g[3] = 5.1
+g[1] = 5.1
 incrementor = 1
 boolean = True
 while(incrementor<10):
     incrementor+=1
 if(boolean == True):
     print('False')
+object1 = TestObject('Object_name',7.2)
+object1.print_object()
+for i in range(0,len(g)):
+    print(i)
+for element in g:
+    print(element)
+object2 = TestObject('Object_name_2',3.3)
+object2.print_object()
+object3 = TestObject('New_Name_1',1.0)
+object3.print_object()
