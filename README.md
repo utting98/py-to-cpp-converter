@@ -9,7 +9,7 @@ converted_data = main('Test.py','CallTest.py')
 write_file(converted_data,'Test.cpp')
 ```
 
-The arguments of these functions constitute operation of the program, main takes arguments of: File_to_convert, Script_of_function_calls_with_example_values. For an example of each script see the Test.py script and CallTest.py script respectively. The CallTest.py script is required because functions could have variables passed to them instead of raw data values. This is an issue because the code attempts to determine what each variable type in a function is for the C++ function definition, the workaround is providing example inputs in the CallTest.py script from which the types are determined. The second argument in the write_file function is the name of the output file to write. If no file name is specified the default will be Output.cpp
+The arguments of these functions constitute operation of the program, main takes arguments of: File_to_convert, Script_of_function_calls_with_example_values. For an example of each script see the Test.py script and CallTest.py script respectively. The CallTest.py script is required because functions could have variables passed to them instead of raw data values. This is an issue because the code attempts to determine what each variable type in a function is for the C++ function definition, the workaround is providing example inputs in the CallTest.py script from which the types are determined. Call examples also have to be made for classes and functions within classes, see the Test.py and CallTest.py scripts for an example. The second argument in the write_file function is the name of the output file to write. If no file name is specified the default will be Output.cpp
 
 As previously mentioned the project is not finished, this is the list of commands able to be converted:
 
@@ -51,10 +51,11 @@ While loops
 
 Boolean statements
 
+Basic class definitions / OOP
 
 TODO:
 
-Class definitions
+Test advanced class definitions
 
 Nesting more if statements inside a final else statement, currently causes an issue where the first if inside it becomes an else if
 
