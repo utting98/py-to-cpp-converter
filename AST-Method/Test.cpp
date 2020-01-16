@@ -1,6 +1,16 @@
 #include <vector>
 #include <string>
 #include <iostream>
+class TestObject {
+	public:
+		std::string name;
+		float value;
+	auto print_object () {
+		std::cout << name << std::endl;
+		std::cout << value << std::endl;
+		return;
+	}
+};
 auto TestFunction (int a, std::vector<float> b, std::string c, float randfloat) {
 	int x_value = a + a;
 	float y_value = randfloat / 2;
@@ -45,12 +55,12 @@ int main () {
 	}
 	std::cout << "Extra" << std::endl;
 	auto value = TestFunction(a, g, c, b);
-	for (int i = 0; i < g.size(); i++) {
+	for (int i = 0; i < 5; i++) {
 		g[i] = 1.1;
 		g.push_back(9.9);
 	}
 	float test_value = g[1];
-	g[3] = 5.1;
+	g[1] = 5.1;
 	int incrementor = 1;
 	bool boolean = true;
 	while (incrementor < 10) {
@@ -61,5 +71,23 @@ int main () {
 	}
 	else {
 	}
+	TestObject object1;
+	object1.name = "Object_name";
+	object1.value = 7.2;
+	object1.print_object();
+	for (int i = 0; i < g.size(); i++) {
+		std::cout << i << std::endl;
+	}
+	for (auto element: g) {
+		std::cout << element << std::endl;
+	}
+	TestObject object2;
+	object2.name = "Object_name_2";
+	object2.value = 3.3;
+	object2.print_object();
+	TestObject object3;
+	object3.name = "New_Name_1";
+	object3.value = 1.0;
+	object3.print_object();
 	return 0;
 }
