@@ -658,12 +658,19 @@ class ForParser(ast.NodeVisitor):
         condition = general_access_node(node.iter) #get the condition of the loop
         #e.g. of condition = ('range'[0,list_name.size()]) or number equivalent
         if(condition[0] == 'range'):
-            lower_limit = condition[1][0] #lower limmit of range
+            lower_limit = condition[1][0] #lower limit of range
             upper_limit = condition[1][1] #upper limit of range
             #write the condition of the for loop incrementing in the range
-            #@todo write condition for backwards iteration
-            for_condition = 'for (int %s = %s; %s < %s; %s++) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
-        else: # if line was for a in list_name, the condition will be (list_name)
+            #@todo write better condition for backwards iteration
+            if(upper_limit==0): #if the upper limit is 0, e.g. range(10,0)
+                #make the for condition iterate backwards from the "lower" limit (with higher value) to "upper" limit (value 0)
+                for_condition = 'for (int %s = %s; %s > %s; %s--) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
+            elif(isinstance(upper_limit,int) and isinstance(lower_limit,int) and upper_limit<lower_limit): #if both limits are numbers (not a len function) and upper has lower value than lower
+                #make the for condition iterate backwards from the "lower" limit (with higher value) to "upper" limit (lower value)
+                for_condition = 'for (int %s = %s; %s > %s; %s--) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
+            else: #otherwise assume forwards iteration
+                for_condition = 'for (int %s = %s; %s < %s; %s++) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
+        else: #if line was for x in list_name, the condition will be (list_name)
             vector = condition[0]
             #format for condition
             for_condition = 'for (auto %s: %s) {' % (iterator,vector)
@@ -975,8 +982,8 @@ def write_file(data,name_of_output='Output.cpp'):
 
 if __name__ == '__main__':
     top_level_if = True #flag for if statments, method needs revision
-    class_vars_for_call = [] #global list for initialising classes
-    called_objs = [] #global list for called classes
+    class_vars_for_call = []
+    called_objs = []
     print('Beginning Parsing') #inform user parsing has began, precaution incase a large file takes a long time parsing
     converted_data = main('Test.py','CallTest.py') #parse Test.py file, function call examples are listed in CallTest.py, if no function calls do not pass second argument
     print('Parsing Completed') #inform user parsing has finished
