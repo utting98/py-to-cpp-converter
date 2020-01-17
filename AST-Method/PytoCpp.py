@@ -846,6 +846,8 @@ def general_access_node(node):
         parsed_node = NameConstantParser().visit_NameConstant(node)
     elif(type(node) == ast.ClassDef):
         parsed_node = ClassDefParser().visit_ClassDef(node)
+    elif(type(node) == ast.Break):
+        parsed_node = 'break;'
     else: #if the type of node does not yet have a parser raise a type error which diesplays the type to know what parser needs to be made next
         raise TypeError('Parser not found for type: %s' % type(node))
     
