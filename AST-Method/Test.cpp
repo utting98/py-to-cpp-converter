@@ -89,5 +89,8 @@ int main () {
 	object3.name = "New_Name_1";
 	object3.value = 1.0;
 	object3.print_object();
+	for (int i = 5; i > 0; i--) {
+		std::cout << i << std::endl;
+	}
 	return 0;
 }
