@@ -48,6 +48,7 @@ incrementor = 1
 boolean = True
 while(incrementor<10):
     incrementor+=1
+    break
 if(boolean == True):
     print('False')
 object1 = TestObject('Object_name',7.2)
