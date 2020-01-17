@@ -489,7 +489,7 @@ class ExprParser(ast.NodeVisitor):
             out_args += 'std::endl' #add an endline to the end of the string
             
             converted_line = function + out_args + ';' #make the converted line std::cout << arg1 << arg2 ... << std::endl;
-
+        
         elif('.' in function): #check if the function is an attribute
             #this means it is an attribute that should have already been resolved
             #an example could be line = ('g.append(',[args_list])
@@ -661,7 +661,6 @@ class ForParser(ast.NodeVisitor):
             lower_limit = condition[1][0] #lower limit of range
             upper_limit = condition[1][1] #upper limit of range
             #write the condition of the for loop incrementing in the range
-            #@todo write better condition for backwards iteration
             if(upper_limit==0): #if the upper limit is 0, e.g. range(10,0)
                 #make the for condition iterate backwards from the "lower" limit (with higher value) to "upper" limit (value 0)
                 for_condition = 'for (int %s = %s; %s > %s; %s--) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
@@ -669,6 +668,17 @@ class ForParser(ast.NodeVisitor):
                 #make the for condition iterate backwards from the "lower" limit (with higher value) to "upper" limit (lower value)
                 for_condition = 'for (int %s = %s; %s > %s; %s--) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
             else: #otherwise assume forwards iteration
+                for_condition = 'for (int %s = %s; %s < %s; %s++) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
+        elif(condition[0] == 'reversed'):
+            #condition will be in format ('reversed',[('range',[0,5])])
+            #take limits opposite way round as they are in a reversed function
+            upper_limit = condition[1][0][1][0]
+            lower_limit = condition[1][0][1][1]
+            if(upper_limit==0): #conditions are as above but reversed
+                for_condition = 'for (int %s = %s; %s > %s; %s--) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
+            elif(isinstance(upper_limit,int) and isinstance(lower_limit,int) and lower_limit>upper_limit): 
+                for_condition = 'for (int %s = %s; %s > %s; %s--) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
+            else:
                 for_condition = 'for (int %s = %s; %s < %s; %s++) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
         else: #if line was for x in list_name, the condition will be (list_name)
             vector = condition[0]
