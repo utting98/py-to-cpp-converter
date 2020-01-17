@@ -65,6 +65,7 @@ int main () {
 	bool boolean = true;
 	while (incrementor < 10) {
 		incrementor += 1;
+		break;
 	}
 	if (boolean == true) {
 		std::cout << "False" << std::endl;
