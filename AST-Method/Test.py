@@ -60,3 +60,5 @@ object2 = TestObject('Object_name_2',3.3)
 object2.print_object()
 object3 = TestObject('New_Name_1',1.0)
 object3.print_object()
+for i in range(5,0):
+    print(i)
