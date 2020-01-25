@@ -138,6 +138,31 @@ class ClassDefParser(ast.NodeVisitor):
         #print(node.decorator_list)
         return class_block #return the class block
 
+#input classifying and converting function
+def input_convert(name,data,type_var): #pass args of the variable, input arg data and the type of variable (pre-determined)
+    val_assign = data #set val assign as data
+    name_assign = name #set name assign as name
+    converted_input = [] #list of converted input lines
+    args = val_assign[1] #store the args of the input string
+    outstring = args[0] #argument of the input string (line to output to prompt an input)
+    outstring = string_or_var(outstring) #check if the outstring is a variable or string question
+    outline = 'std::cout << ' + outstring + ';' #output the outstring
+    converted_input.append(outline) #store the output line
+    var = name_assign #store name of variable under var
+    set_var = type_var + ' ' + var +';' #declare the input variable using the previously found type
+    converted_input.append(set_var) #append the declaration to the input lines
+    if(type_var=='std::string'): #if the type of input is a string
+        input_string = 'std::getline (std::cin, %s);' % var #format a getline command to avoid whitespace breaks as this is probably unintended
+        converted_input.append(input_string) #append the getline command to the input lines
+    else: #if some other var type like float or int
+        input_string = 'std::cin >> %s;' % var #use a standard cin command
+        converted_input.append(input_string) #append the input command
+        clear_in_buffer = 'std::cin.get();' #add a line to clear the input buffer to remove trailing \n for future input
+        converted_input.append(clear_in_buffer) #append the clear buffer command
+    end_line = 'std::cout << std::endl;' #append command to end line after inputs so next line isn't printed on the same line
+    converted_input.append(end_line) #append the end line command to the input conversion
+    return converted_input #return the input conversion
+
 #parser class for assign statements, anything with an =
 class AssignParser(ast.NodeVisitor):
     def visit_Assign(self,node): #function to visit the assign node
@@ -170,8 +195,20 @@ class AssignParser(ast.NodeVisitor):
             pass
         
         type_check = type(val_assign) #find the type data the value assign is
+        #this condition will be met if line is assigning an input to a variable
+        if(type_check == tuple and val_assign[0] == 'input'):
+            converted = input_convert(name_assign,val_assign,'std::string') #convert the input using the function above passing type as string as input was not formatted with int(input()) or float(input())
+            return converted #return the conversion
+        #this condition met if input wrapped in a type command of int or float or just a standard int/float command
+        elif(type_check == tuple and (val_assign[0] == 'int' or val_assign[0] == 'float')):
+            if(val_assign[1][0][0] == 'input'): #if an input command wrapped by the function
+                converted = input_convert(name_assign,val_assign[1][0],val_assign[0]) #convert input command using var type of the wrapping function
+                return converted #return the converted input
+            else: #if it's not an input raise a TypeError as it is not handled yet
+                #@todo normal int() float() list() str() commands
+                raise TypeError('Conversion of arg type not handled %s' % val_assign)
         #if the val_assign is a call to create an object this condition will be met, this method is a bit messy and could potentially do with reworking
-        if(type_check == tuple and any(('class %s {' % val_assign[0]) in x for x in converted_lines)):
+        elif(type_check == tuple and any(('class %s {' % val_assign[0]) in x for x in converted_lines)):
             #print(val_assign[0], name_assign, val_assign[1])
             #val_assign will have format (Class_Name,[init_arg,init_arg,...])
             obj_declaration = [] #make list for object declaration
@@ -772,6 +809,7 @@ def string_or_var(value):
             pass
         else: #if match flag a match found
             found = True
+            break
     #if there is a function under conversion not yet appended and no match found
     if(arg_vars != [] and found == False):
         for i in range(0,len(arg_vars)): #iterate over the function arguments
@@ -779,6 +817,7 @@ def string_or_var(value):
                 pass
             else: #if match flag a match was found
                 found = True
+                break
     else:
         pass
     #if there is a function under conversion not yet appended and no match found
@@ -789,6 +828,8 @@ def string_or_var(value):
                 pass
             else: #if match flag that a match was found
                 found = True
+                break
+            
     #if there is an active class check for a match in its declarated arguments
     if(class_args != [] and found == False):
         for i in range(0,len(class_args)): #iterate over class args to check for match
@@ -797,7 +838,20 @@ def string_or_var(value):
                 pass
             else: #if match flag that a match was found
                 found = True
-
+                break
+    
+    
+    if(found==False):
+        #print(converted_lines)
+        second_declare = ' %s;' % value
+        for i in reversed(range(0,len(converted_lines))):
+            for j in range(0,len(converted_lines[i])):
+                if(second_declare not in converted_lines[i][j]): #if not match pass
+                    pass
+                else: #if match flag a match found
+                    found = True
+                    break
+    
     if(found == False and value != 'true' and value != 'false'): #if no match default to string
         value = '"%s"' % value
     else:
