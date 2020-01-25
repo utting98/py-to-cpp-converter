@@ -93,5 +93,16 @@ int main () {
 	for (int i = g.size(); i > 0; i--) {
 		std::cout << i << std::endl;
 	}
+	std::cout << "Enter your age (years): ";
+	int convert_input_to_int;
+	std::cin >> convert_input_to_int;
+	std::cin.get();
+	std::cout << std::endl;
+	std::cout << convert_input_to_int << std::endl;
+	std::cout << "Enter your name: ";
+	std::string string_input;
+	std::getline (std::cin, string_input);
+	std::cout << std::endl;
+	std::cout << string_input << std::endl;
 	return 0;
 }
