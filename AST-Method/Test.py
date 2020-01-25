@@ -63,3 +63,7 @@ object3 = TestObject('New_Name_1',1.0)
 object3.print_object()
 for i in reversed(range(0,len(g))):
     print(i)
+convert_input_to_int = int(input('Enter your age (years): '))
+print(convert_input_to_int)
+string_input = input('Enter your name: ')
+print(string_input)
