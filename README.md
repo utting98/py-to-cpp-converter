@@ -39,7 +39,7 @@ Function calls
 
 For loops
 
-List declarations
+List declarations (not empty)
 
 List append commands
 
@@ -56,6 +56,8 @@ Basic class definitions / OOP
 Input commands
 
 TODO:
+
+List declarations (empty)
 
 Test advanced class definitions
 
