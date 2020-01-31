@@ -67,3 +67,7 @@ convert_input_to_int = int(input('Enter your age (years): '))
 print(convert_input_to_int)
 string_input = input('Enter your name: ')
 print(string_input)
+empty_list_dec = []
+empty_list_dec.append('string_to_push_back')
+for i in empty_list_dec:
+    print(i)
