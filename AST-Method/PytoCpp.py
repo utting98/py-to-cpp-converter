@@ -166,7 +166,7 @@ def input_convert(name,data,type_var): #pass args of the variable, input arg dat
 #parser class for assign statements, anything with an =
 class AssignParser(ast.NodeVisitor):
     def visit_Assign(self,node): #function to visit the assign node
-        global converted_lines, arg_vars, class_vars_for_call, called_objs #access to required globals
+        global converted_lines, arg_vars, class_vars_for_call, called_objs, list_spiel #access to required globals
         for name in node.targets: #iterate over the node targets
             name_assign = general_access_node(name) #get the name, this is the variable the value is assigned to
         if(type(node.value) == ast.BinOp): #check for binary operators in the statement
@@ -195,8 +195,52 @@ class AssignParser(ast.NodeVisitor):
             pass
         
         type_check = type(val_assign) #find the type data the value assign is
+        #this condition will be met if someone declares an empty list
+        if(val_assign == []):
+            if(list_spiel == True): #print this spiel of information if it is the first time this warning has come up
+                print('\nAn empty list was detected in your python script, this is a problem for the conversion.')
+                print('The C++ equivalent of python lists need to have the data type being entered declared in advance.')
+                list_spiel = False
+            else:
+                pass
+            
+            appropriate_answer = False #inform user how to classify and enter their list types
+            print('\nEmpty list detected called "%s", please enter a data type for the list. Accepted data types are: integer, float, string' % name_assign)
+            print('If list will contain more lists please enter: list(type_of_data_in_sublist) and so on if sub_list type is another list, see "help" for an example.')
+            while(appropriate_answer==False): #keep getting an input until an appropriate one is entered
+                data_type = input('Please enter a type listed above or "help" for more information: ')
+                
+                if(data_type.lower() == 'help'): #if user asking for help print examples of each type
+                    print('For an integer list type, the list could look like: [1,2,3,4,5]')
+                    print('For a float list type, the list could look like [1.1,2.2,3.3,4.4,5.5]')
+                    print('For a string list type, the list could look like ["Apples","Oranges","Bananas","Pears"]')
+                    print('For a list of lists, the list could look like [ [[1,1,1],[2,2,2]] , [[3,3,3],[4,4,4]] ]. In this case you would need to enter: list(list(integer)).')
+                    print('This is because you enter list one less time than the nest level (nest_level = consecutive "[" at the start) and the lowest level data is of type integer')
+                elif(data_type.lower() == 'integer'): #format list of integers
+                    type_check = 'std::vector<int>'
+                    val_assign = '{}'
+                    appropriate_answer = True
+                elif(data_type.lower() == 'float'): #format list of floats
+                    type_check = 'std::vector<float>'
+                    val_assign = '{}'
+                    appropriate_answer = True
+                elif(data_type.lower() == 'string'): #format list of strings
+                    type_check = 'std::vector<std::string>'
+                    val_assign = '{}'
+                    appropriate_answer = True
+                elif('list' in data_type.lower()): #format list of lists
+                    converted_string_lists = data_type.replace('list','std::vector').replace('(','<').replace(')','>')
+                    converted_string_lists = converted_string_lists.replace('integer','int').replace('string','std::string')
+                    type_check = 'std::vector<%s>' % converted_string_lists
+                    val_assign = str(val_assign).replace('[','{').replace(']','}')
+                    if('int' in converted_string_lists or 'float' in converted_string_lists or 'std::string' in converted_string_lists):
+                        appropriate_answer = True
+                    else:
+                        print('Invalid input, please try again')
+                else:
+                    print('Invalid input, please try again')
         #this condition will be met if line is assigning an input to a variable
-        if(type_check == tuple and val_assign[0] == 'input'):
+        elif(type_check == tuple and val_assign[0] == 'input'):
             converted = input_convert(name_assign,val_assign,'std::string') #convert the input using the function above passing type as string as input was not formatted with int(input()) or float(input())
             return converted #return the conversion
         #this condition met if input wrapped in a type command of int or float or just a standard int/float command
@@ -718,7 +762,7 @@ class ForParser(ast.NodeVisitor):
             else:
                 for_condition = 'for (int %s = %s; %s < %s; %s++) {' % (iterator,lower_limit,iterator,upper_limit,iterator)
         else: #if line was for x in list_name, the condition will be (list_name)
-            vector = condition[0]
+            vector = condition
             #format for condition
             for_condition = 'for (auto %s: %s) {' % (iterator,vector)
 
@@ -1048,6 +1092,7 @@ def write_file(data,name_of_output='Output.cpp'):
 
 if __name__ == '__main__':
     top_level_if = True #flag for if statments, method needs revision
+    list_spiel = True
     class_vars_for_call = []
     called_objs = []
     print('Beginning Parsing') #inform user parsing has began, precaution incase a large file takes a long time parsing
