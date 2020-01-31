@@ -104,5 +104,10 @@ int main () {
 	std::getline (std::cin, string_input);
 	std::cout << std::endl;
 	std::cout << string_input << std::endl;
+	std::vector<std::string> empty_list_dec = {};
+	empty_list_dec.push_back("string_to_push_back");
+	for (auto i: empty_list_dec) {
+		std::cout << i << std::endl;
+	}
 	return 0;
 }
