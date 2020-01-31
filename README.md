@@ -55,9 +55,10 @@ Basic class definitions / OOP
 
 Input commands
 
-TODO:
+List declarations (empty) (requires some user input to console but user is walked through it)
 
-List declarations (empty)
+
+TODO:
 
 Test advanced class definitions
 
