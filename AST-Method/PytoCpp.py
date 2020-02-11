@@ -193,10 +193,30 @@ class AssignParser(ast.NodeVisitor):
                 pass
         except:
             pass
-        
+
         type_check = type(val_assign) #find the type data the value assign is
+        if(type_check == tuple and val_assign[0] == 'open'): #this condition will be met if the user attempts to open a file
+            #val_assign will be in format (open,[filename,r/w/a])
+            file_conversion = [] #make a list for file operation conversion
+            args = val_assign[1] #args of the
+            file_name = args[0] #get the file name as first arg
+            open_type = args[1] #get the type of file operation as second arg
+            file_declare = 'std::fstream %s;' % name_assign #make declaration of file stream
+            file_conversion.append(file_declare) #appedn declaration to file conversion
+            #convert appropriate operation type to c++ equivalent
+            if('r' in open_type):
+                open_type = 'std::ios::in'
+            elif('w' in open_type):
+                open_type = 'std::ios::out'
+            elif(open_type == 'a'):
+                open_type = 'std::ios::app'  
+                
+            file_name = file_name.replace('\\',"/") #replace backslash with forward to prevent issues in file name
+            open_line = '%s.open("%s",%s);' % (name_assign,file_name,open_type) #declare line to open file with appropriate type
+            file_conversion.append(open_line) #append file opening statement to file conversion block
+            return file_conversion #return file conversion block
         #this condition will be met if someone declares an empty list
-        if(val_assign == []):
+        elif(val_assign == []):
             if(list_spiel == True): #print this spiel of information if it is the first time this warning has come up
                 print('\nAn empty list was detected in your python script, this is a problem for the conversion.')
                 print('The C++ equivalent of python lists need to have the data type being entered declared in advance.')
@@ -735,8 +755,59 @@ class NameParser(ast.NodeVisitor):
 #define parser for for loop nodes
 class ForParser(ast.NodeVisitor):
     def visit_For(self,node): #visit the for node
+        global converted_lines
         iterator = general_access_node(node.target) #get the iterator of the loop
         condition = general_access_node(node.iter) #get the condition of the loop
+        try: #check for a special condition of iterating over lines in an open file
+            file = False #flag for whether this loop is accessing a file
+            file_check = 'std::fstream %s;' % condition #check for declaration of file
+            if(type(condition) != tuple): #will only be a file declaration if condition is not a tuple
+                for line in converted_lines: #iterate over converted lines to look for file declaration
+                    if(type(line) == list):
+                        for i in line:
+                            if(i==file_check):
+                                file = True #if file declaration found flag as such
+                                break
+                            else:
+                                pass
+                    else:
+                        if(line==file_check):
+                            file = True #if file declaration found flag as such
+                            break
+                        else:
+                            pass
+            #this condition should be true for an iterative loop of type "for line in file:"
+            if(type(condition) != tuple and file==True):                
+                for_condition = [] #make a block for this type of for loop
+                declare_iterator = 'std::string %s;' % iterator #make iterator declaration
+                new_condition = "while (!%s.eof()) {" % condition #conver to a while loop to iterate over file
+                getline_string = "std::getline(%s,%s,'\\n');"% (condition,iterator) #get the line of the file
+                #append relevant statements to condition block
+                for_condition.append(declare_iterator) 
+                for_condition.append(new_condition)
+                for_condition.append(getline_string)
+                for i in node.body: #for each node in the body
+                    line = general_access_node(i) #classify and convert the line
+                    if('std::cout << ' in line): #check if attempting to print something
+                        splitup = line.split(' << ') #split on the args separator
+                        for i in range(0,len(splitup)): #iterate over the split args
+                            if(splitup[i] == ('"%s"' % iterator)): #check if the arg is the iterator which has falsely been converted in to a string
+                                splitup[i] = iterator #if false conversion made switch out for iterator
+                                line = ' << '.join(splitup) #rejoin the line
+                            else: #if no false string pass
+                                pass
+                    elif('push_back' in line): #check if attempting to append something to a list
+                        if(('push_back("%s")' % iterator) in line): #if iterator being pushed back after false conversion to a string replace the string with the iterator
+                            line = line.replace(('push_back("%s")' % iterator), ('push_back(%s)' % iterator))
+                        else:
+                            pass
+                    for_condition.append(line) #convert the node and append it to the block
+                for_condition.append('}') #close the for brace
+                return for_condition #return this special case loop
+            else:
+                pass
+        except: #if fails condition is not true anyway
+            pass
         #e.g. of condition = ('range'[0,list_name.size()]) or number equivalent
         if(condition[0] == 'range'):
             lower_limit = condition[1][0] #lower limit of range
@@ -778,6 +849,11 @@ class ForParser(ast.NodeVisitor):
                         line = ' << '.join(splitup) #rejoin the line
                     else: #if no false string pass
                         pass
+            elif('push_back' in line):
+                if(('push_back("%s")' % iterator) in line):
+                    line = line.replace(('push_back("%s")' % iterator), ('push_back(%s)' % iterator))
+                else:
+                    pass
             body_block.append(line) #convert the node and append it to the block
         body_block.append('}') #close the for brace
         return body_block #return the body
@@ -1041,6 +1117,12 @@ def main(script_to_parse,script_of_function_calls=None):
         pass
     if('std::vector' in line for line in converted_lines):
         converted_lines.insert(0,'#include <vector>')
+    else:
+        pass
+    if('std::fstream' in line for line in converted_lines):
+        converted_lines.insert(0,'#include <fstream>')
+    else:
+        pass
     return converted_lines #return the list of converted c++ lines
 
 #function to check if line is list or list of lists and convert in to flattened data
@@ -1092,7 +1174,7 @@ def write_file(data,name_of_output='Output.cpp'):
 
 if __name__ == '__main__':
     top_level_if = True #flag for if statments, method needs revision
-    list_spiel = True
+    list_spiel = True #flag for displaying extra information about empty lists
     class_vars_for_call = []
     called_objs = []
     print('Beginning Parsing') #inform user parsing has began, precaution incase a large file takes a long time parsing
