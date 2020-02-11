@@ -57,6 +57,7 @@ Input commands
 
 List declarations (empty) (requires some user input to console but user is walked through it)
 
+Simple file reading (note to user: either specify full path when opening the file, OR if you compile code with visual studio, when testing put file in ./solution_name/solution_name, where a .proj, .filters and .user are)
 
 TODO:
 
@@ -68,7 +69,7 @@ See @todo comments in PytoCpp.py for known bugs / missing features to work on
 
 More base python functions e.g. reversed, type etc
 
-File I/O
+File writing
 
 Also see Test.py for show of currently convertible functions, each time one is added I update the Test.py script to include it to show that it works.
 
