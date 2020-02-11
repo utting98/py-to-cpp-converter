@@ -71,3 +71,10 @@ empty_list_dec = []
 empty_list_dec.append('string_to_push_back')
 for i in empty_list_dec:
     print(i)
+read_file = open('RWTest.txt','r')
+lines = []
+for file_line in read_file:
+    lines.append(file_line)
+read_file.close()
+for i in lines:
+    print(i)
