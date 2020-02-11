@@ -1,3 +1,4 @@
+#include <fstream>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -107,6 +108,18 @@ int main () {
 	std::vector<std::string> empty_list_dec = {};
 	empty_list_dec.push_back("string_to_push_back");
 	for (auto i: empty_list_dec) {
+		std::cout << i << std::endl;
+	}
+	std::fstream read_file;
+	read_file.open("RWTest.txt",std::ios::in);
+	std::vector<std::string> lines = {};
+	std::string file_line;
+	while (!read_file.eof()) {
+		std::getline(read_file,file_line,'\n');
+		lines.push_back(file_line);
+	}
+	read_file.close();
+	for (auto i: lines) {
 		std::cout << i << std::endl;
 	}
 	return 0;
